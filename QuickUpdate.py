@@ -1,22 +1,23 @@
 import time
 import telnetlib
+import paramiko
+import sys
 
 def telnetToMXKAndLogin():
     
-    host = input("Enter the IP of your device: ")
-    tn = telnetlib.Telnet(host)
-    tn.read_until(b"login:")
-    tn.write(b"admin\r")
-    tn.read_until(b"password:")
-    tn.write(b"zhone\r")
-    return tn
+    MXKTelnet = telnetlib.Telnet(input("Enter the IP of your device: "))
+    MXKTelnet.read_until(b"login:")
+    MXKTelnet.write(b"admin\r")
+    MXKTelnet.read_until(b"password:")
+    MXKTelnet.write(b"zhone\r")
+    return MXKTelnet
 
-def findBins(tn):
+def findBins(MXKTelnet):
 
-    tn.read_until(b"zSH>")
-    tn.write(b"dir\r")
+    MXKTelnet.read_until(b"zSH>")
+    MXKTelnet.write(b"dir\r")
     time.sleep(1)
-    DirString = tn.read_very_eager().decode('ascii')
+    DirString = MXKTelnet.read_very_eager().decode('ascii')
     DirArray = DirString.split()
     BinArray = []
     for i in range(len(DirArray) - 1):
@@ -24,51 +25,63 @@ def findBins(tn):
             BinArray.append(DirArray[i])
     return BinArray
 
-def fileDownload(tn, BinArray):
+#def sshToRTLUtil():
+    
+    #ssh = paramiko.SSHClient()
+    #ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    #ssh.connect('10.57.99.101', '22', 'mhiggins', 'zhone123')
+    #return ssh
 
-    tn.write(b"\r")
+def fileDownload(MXKTelnet, BinArray):
+
+    MXKTelnet.write(b"\r")
     time.sleep(1)
-    tn.read_until(b"zSH>")
-    versionNumber = input("What version do you want to upgrade to?: ")
-    for i in range(len(BinArray) - 1):
-        CamelCaseTempString = versionNumber + "/mxk"
-        if(len(BinArray[i]) == 9):
-            CamelCaseTempString += "Mc/"
-        elif(len(BinArray[i]) == 10):
-            CamelCaseTempString += "ROM/"
-        elif(len(BinArray[i]) == 12):
-            CamelCaseTempString += "McROM/"
-        elif(len(BinArray[i]) == 13):
-            CamelCaseTempString += "LcAeTg/"
-        elif(BinArray[i][3] == "f"):
-            CamelCaseTempString += "FcAe/"
-        elif(BinArray[i][5] == "g"):
-            CamelCaseTempString += "LcGp/"
-        else:
-            CamelCaseTempString += "LcAe/"
-        WriteString = "image download 10.57.99.101 /release/MXK_" + CamelCaseTempString + BinArray[i] + " /card1/" + BinArray[i] + "\r"
-        WriteBytes = WriteString.encode('ascii')
-        print(WriteBytes)
-        tn.write(WriteBytes)
-        tn.read_until(b"zSH>")
+    MXKTelnet.read_until(b"zSH>")
+    VersionNumber = input("What version do you want to upgrade to?: ")
+    #RTLUtilSSH = sshToRTLUtil()
+    RTLUtilSSH = paramiko.SSHClient()
+    RTLUtilSSH.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    RTLUtilSSH.connect('10.57.99.101', '22', 'mhiggins', 'zhone123')
+    FlashString = ""
+    for i in range(len(BinArray)):
+        if(BinArray[i].find("mxup") != -1 and BinArray[i].find("raw.bin") != -1):
+            FlashString = "image flash /card1/" + BinArray[i] + " 1"
+            FlashStringAll = FlashString + " all"
+        FileDownloadString = "image download 10.57.99.101 /release/MXK_" + VersionNumber
+        GetPathSSHCommand = "cd /data/release/MXK_" + VersionNumber + "; find | grep "
+        stdin,stdout,stderr = RTLUtilSSH.exec_command(GetPathSSHCommand + BinArray[i])
+        FilePath = stdout.readlines()
+        FilePathResponse = ''.join(FilePath)
+        FileDownloadString += FilePathResponse[1:].strip(('\n\r')) + " /card1/" + BinArray[i] + "\r"
+        if(len(FileDownloadString) > 80):
+            #DownloadBytes = FileDownloadString.encode('ascii')
+            MXKTelnet.write(FileDownloadString.encode('ascii'))
+            MXKTelnet.read_until(b"zSH>")
+    if(FlashString != ""):
+        #print("flashing")
+        MXKTelnet.write(FlashStringAll.encode('ascii'))
+        MXKTelnet.write(FlashString.encode('ascii'))
     return
     
 def main():
     
-    tn = telnetToMXKAndLogin()
+    MXKTelnet = telnetToMXKAndLogin()
     Reboot = input("Would you like to reboot after download (y/n)?: ")
-    BinArray = findBins(tn)
-    fileDownload(tn, BinArray)
+    BinArray = findBins(MXKTelnet)
+    if(BinArray == []):
+        print("No bin files found for this load. You may have typed the new version wrong. Please try again.")
+    else:
+        fileDownload(MXKTelnet, BinArray)
     if(Reboot == "y"):
-        tn.write(b"systemreboot\r")
+        MXKTelnet.write(b"systemreboot\r")
         time.sleep(1)
-        tn.write(b"y\r")
+        MXKTelnet.write(b"y\r")
         time.sleep(1)
-        tn.write(b"n\r")
+        MXKTelnet.write(b"n\r")
         time.sleep(1)
-        tn.write(b"y\r")
+        MXKTelnet.write(b"y\r")
         time.sleep(1)
-    tn.write(b"exit\r")
-    tn.close()
+    MXKTelnet.write(b"exit\r")
+    MXKTelnet.close()
              
 main()
