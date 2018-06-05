@@ -25,10 +25,22 @@ for i in range(len(DirArray) - 1):
             MXKTelnet.write(FileDownloadString.encode('ascii'))
             MXKTelnet.read_until(b"zSH>")
         if(DirArray[i].find("mxup") > -1 and DirArray[i].find("raw.bin") > -1):
-            FlashString = "image flash /card1/mxup2tg8graw.bin 1 all\r"
+            FlashString = "image flash /card1/" + DirArray[i] + " 1 all\r"
 if(FlashString != ""):
     MXKTelnet.write(FlashString.encode('ascii'))
+    time.sleep(2)
+    MXKTelnet.write(b"yes\r")
+    MXKTelnet.read_until(b"zSH>")
     print(FlashString)
-MXKTelnet.write(b"exit\r")
+time.sleep(1)
+MXKTelnet.write(b"systemreboot\r\n")
+time.sleep(1)
+MXKTelnet.write(b"yes\r\n")
+time.sleep(1)
+MXKTelnet.write(b"no\r\n")
+time.sleep(1)
+MXKTelnet.write(b"yes\r\n")
+time.sleep(1)
+MXKTelnet.write(b"exit\r\n")
 RTLUtilSSH.close()
 MXKTelnet.close()
